@@ -18,7 +18,7 @@ Frontend:
 Backend:
 - Node.js
 - Express
-- MongoDB with Mongoose
+- MongoDB with Compass
 - JWT Authentication
 
 Setup Instructions:
@@ -29,14 +29,8 @@ Backend Setup:
 - cd backend
 - npm install
 
-Create a .env file:
-- MONGO_URI=your_mongodb_connection_string
-- JWT_SECRET=your_secret_key
-- PORT=5000
-
-
 Run the backend:
-npm start
+npm start OR npm run dev
 
 
 Frontend Setup:
@@ -45,6 +39,5 @@ Frontend Setup:
 - npm run dev
 
 
-The app will be available at:
-
+TAnd that's it! You will be provided with a localhost link, such as:
 http://localhost:5173
