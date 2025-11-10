@@ -1,8 +1,17 @@
 const { MongoClient, ObjectId } = require('mongodb');
 const express = require('express');
 const cors = require('cors');
-const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto'); // built-in
+
+// I am using Node's built-in crypto for password hashing instead of bcrypt,
+// to ensure compatibility without additional installation steps
+
+//I can use bcrypt too, but this is much faster for setup,
+//and easy for anyone to run without extra installations
+
+//Thanks and Regards, Parthiv Abhani (PRN: 23070521106)
+
 
 const app = express();
 app.use(cors());
@@ -30,18 +39,29 @@ async function connectToMongoDB() {
 
 connectToMongoDB();
 
+// --- Simple hash helper functions using crypto ---
+function hashPassword(password) {
+  // SHA-256 hash, encoded in hex
+  return crypto.createHash('sha256').update(password).digest('hex');
+}
+
+function verifyPassword(password, hashed) {
+  const hashToCompare = hashPassword(password);
+  return hashToCompare === hashed;
+}
+
 // SIGNUP
 app.post("/api/auth/signup", async (req, res) => {
   const { name, email, password } = req.body;
 
   try {
     const existingUser = await db.collection("users").findOne({ email });
-
     if (existingUser) {
       return res.status(400).json({ message: "User already exists" });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = hashPassword(password);
+
     const result = await db.collection("users").insertOne({
       name,
       email,
@@ -62,13 +82,11 @@ app.post("/api/auth/login", async (req, res) => {
 
   try {
     const user = await db.collection("users").findOne({ email });
-
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
-
+    const isMatch = verifyPassword(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: "Invalid credentials" });
     }
