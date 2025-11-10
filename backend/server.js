@@ -1,50 +1,121 @@
+const { MongoClient, ObjectId } = require('mongodb');
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
-const authRoutes = require('./routes/authRoutes');
-const eventRoutes = require('./routes/eventRoutes');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 
 const app = express();
-
-// Middleware
-app.use(cors({ origin: '*', credentials: true }));
+app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-// Connect to MongoDB Compass
-// Make sure your instructor has MongoDB Compass installed and a local MongoDB service running.
-// Default local URI: mongodb://127.0.0.1:27017/communityevents
-mongoose.connect('mongodb://127.0.0.1:27017/communityevents', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-  .then(() => console.log('MongoDB Connected (Compass Local Instance)'))
-  .catch((err) => {
-    console.error('MongoDB connection error:', err);
-    process.exit(1);
-  });
+const uri = "mongodb://localhost:27017";
+const client = new MongoClient(uri);
+const dbName = "kommunityevents";
+let db;
 
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/events', eventRoutes);
+async function connectToMongoDB() {
+  try {
+    await client.connect();
+    db = client.db(dbName);
+    console.log("Connected successfully to MongoDB");
 
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Server is running' });
+    const PORT = 5000;
+    app.listen(PORT, () => {
+      console.log("Server started at port:", PORT);
+    });
+  } catch (error) {
+    console.error("Error connecting to MongoDB:", error);
+  }
+}
+
+connectToMongoDB();
+
+// SIGNUP
+app.post("/api/auth/signup", async (req, res) => {
+  const { name, email, password } = req.body;
+
+  try {
+    const existingUser = await db.collection("users").findOne({ email });
+
+    if (existingUser) {
+      return res.status(400).json({ message: "User already exists" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const result = await db.collection("users").insertOne({
+      name,
+      email,
+      password: hashedPassword,
+    });
+
+    const token = jwt.sign({ id: result.insertedId }, "parthivatlas123", { expiresIn: "30d" });
+    res.status(201).json({ message: "User created", token });
+  } catch (error) {
+    console.error("Signup error:", error);
+    res.status(500).json({ message: "Error during signup" });
+  }
 });
 
-// Default route
-app.get('/', (req, res) => {
-  res.send('Backend is running locally with MongoDB Compass!');
+// LOGIN
+app.post("/api/auth/login", async (req, res) => {
+  const { email, password } = req.body;
+
+  try {
+    const user = await db.collection("users").findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+
+    if (!isMatch) {
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    const token = jwt.sign({ id: user._id }, "parthivatlas123", { expiresIn: "30d" });
+    res.status(200).json({ message: "Login successful", token });
+  } catch (error) {
+    console.error("Login error:", error);
+    res.status(500).json({ message: "Error during login" });
+  }
 });
 
-// Error handling
-app.use((err, req, res, next) => {
-  console.error('Server Error:', err.stack);
-  res.status(500).json({ message: 'Something went wrong!', error: err.message });
+// GET ALL EVENTS
+app.get("/api/events", async (req, res) => {
+  try {
+    const events = await db.collection("events").find({}).toArray();
+    res.status(200).json(events);
+  } catch (error) {
+    console.error("Error fetching events:", error);
+    res.status(500).json({ message: "Failed to fetch events" });
+  }
 });
 
-const PORT = 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// CREATE EVENT
+app.post("/api/events", async (req, res) => {
+  const { title, description, date, location } = req.body;
+
+  try {
+    const result = await db.collection("events").insertOne({
+      title,
+      description,
+      date,
+      location,
+    });
+
+    res.status(201).json({ message: "Event created", eventId: result.insertedId });
+  } catch (error) {
+    console.error("Error creating event:", error);
+    res.status(500).json({ message: "Failed to create event" });
+  }
+});
+
+// HEALTH CHECK
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok", message: "Server is running" });
+});
+
+app.get("/", (req, res) => {
+  res.send("Backend is running with MongoDB Compass!");
 });
