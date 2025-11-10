@@ -9,8 +9,8 @@ const protect = async (req, res, next) => {
       // Get token from header
       token = req.headers.authorization.split(' ')[1];
 
-      // Verify token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      // Verify token using hardcoded secret
+      const decoded = jwt.verify(token, 'parthivatlas123'); // your same secret
 
       // Get user from token
       req.user = await User.findById(decoded.id).select('-password');
